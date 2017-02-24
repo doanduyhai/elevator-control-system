@@ -4,7 +4,6 @@ import akka.actor.{Props, ActorSystem}
 import akka.testkit.{TestKit, ImplicitSender, EventFilter}
 import com.typesafe.config.ConfigFactory
 import org.scalatest._
-import scala.concurrent.duration._
 
 
 class ElevatorActorTest extends TestKit(ActorSystem("ElevatorActorSystem",
@@ -19,7 +18,7 @@ class ElevatorActorTest extends TestKit(ActorSystem("ElevatorActorSystem",
 
     "move to target floor from initial pickup floor" in {
       //Given
-      val elevator = system.actorOf(Props(new ElevatorActor(1, 10.millisecond, testActor, Still(0))))
+      val elevator = system.actorOf(Props(new ElevatorActor(1, testActor, Still(0))))
 
       //When
       elevator ! Pickup(Move(0, 3))
@@ -32,7 +31,7 @@ class ElevatorActorTest extends TestKit(ActorSystem("ElevatorActorSystem",
 
     "move to target floor from floor higher than pickup floor" in {
       //Given
-      val elevator = system.actorOf(Props(new ElevatorActor(1, 10.millisecond, testActor, Still(5))))
+      val elevator = system.actorOf(Props(new ElevatorActor(1, testActor, Still(5))))
 
       //When
       elevator ! Pickup(Move(3, 1))
@@ -49,7 +48,7 @@ class ElevatorActorTest extends TestKit(ActorSystem("ElevatorActorSystem",
 
     "move to target floor from floor lower than pickup floor" in {
       //Given
-      val elevator = system.actorOf(Props(new ElevatorActor(1, 10.millisecond, testActor, Still(1))))
+      val elevator = system.actorOf(Props(new ElevatorActor(1, testActor, Still(1))))
 
       //When
       elevator ! Pickup(Move(4, 2))
@@ -66,7 +65,7 @@ class ElevatorActorTest extends TestKit(ActorSystem("ElevatorActorSystem",
 
     "save pickup order and move to target floor when current move is finished" in {
       //Given
-      val elevator = system.actorOf(Props(new ElevatorActor(1, 10.millisecond, testActor, Move(1, 3))))
+      val elevator = system.actorOf(Props(new ElevatorActor(1, testActor, Move(1, 3))))
 
       //When
       elevator ! Pickup(Move(5, 2))
@@ -85,7 +84,7 @@ class ElevatorActorTest extends TestKit(ActorSystem("ElevatorActorSystem",
 
     "throws exception when already has scheduled order" in {
       //Given
-      val elevator = system.actorOf(Props(new ElevatorActor(1, 10.millisecond, testActor, Move(1, 3), Option(Pickup(Move(5,2))))))
+      val elevator = system.actorOf(Props(new ElevatorActor(1, testActor, Move(1, 3), scheduledOrder = Option(Pickup(Move(5,2))))))
 
       //Then
       EventFilter.error(message = s"Cannot accept Pickup(Move(3,0)) " +

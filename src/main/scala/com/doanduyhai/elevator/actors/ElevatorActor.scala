@@ -34,8 +34,8 @@ case class Still(floor: Int) extends ElevatorStatus {
 }
 
 
-class ElevatorActor(val elevatorId: Int, val movingSpeed: FiniteDuration, val controlSystem:ActorRef,
-                    private var elevatorStatus: ElevatorStatus, private var scheduledOrder: Option[Pickup]=None)
+class ElevatorActor(val elevatorId: Int, val controlSystem:ActorRef, private var elevatorStatus: ElevatorStatus,
+                    val movingSpeed: FiniteDuration = 10.millisecond, private var scheduledOrder: Option[Pickup]=None)
   extends Actor with ActorLogging {
 
   def receive: Receive = {
