@@ -40,10 +40,10 @@ class ElevatorActor(val elevatorId: Int, val movingSpeed: FiniteDuration, val co
 
   def receive: Receive = {
 
-    case Pickup(pickup) => elevatorStatus match {
+    case p @ Pickup(pickup) => elevatorStatus match {
       case Still(currentFloor) => {
         if (currentFloor != pickup.currentFloor) {
-          savePickupOrder(pickup)
+          savePickupOrder(p)
           this.elevatorStatus = Move(currentFloor, pickup.currentFloor)
 //          log.debug(s"After receiving Pickup($move), add scheduledOrder $scheduledOrder and set state = $elevatorStatus, nextStep = $nextStep")
         } else {
@@ -55,10 +55,10 @@ class ElevatorActor(val elevatorId: Int, val movingSpeed: FiniteDuration, val co
       }
       case currentMove @ Move(_,_) => scheduledOrder match {
         case Some(scheduledPickup) =>
-          log.error(s"Cannot accept Pickup($pickup) because the elevator is moving right now and a pickup $scheduledPickup is already scheduled")
+          log.error(s"Cannot accept $p because the elevator is moving right now and a pickup $scheduledPickup is already scheduled")
         case None =>
           log.info(s"No pending order, save the pickup order for later")
-          savePickupOrder(pickup)
+          savePickupOrder(p)
           scheduleNextMove(currentMove.nextStep)
       }
     }
@@ -96,15 +96,15 @@ class ElevatorActor(val elevatorId: Int, val movingSpeed: FiniteDuration, val co
   }
 
   def removeOrderSchedule(): Unit = {
-    scheduledOrder = None
-    log.debug(s"--------- Send HasScheduledOrder($elevatorId, false) to control system")
-    controlSystem ! HasScheduledOrder(elevatorId, false)
+    this.scheduledOrder = None
+    log.debug(s"--------- Send HasScheduledOrder($elevatorId, None) to control system")
+    controlSystem ! UpdateScheduledOrder(elevatorId, None)
   }
 
-  def savePickupOrder(move: Move): Unit = {
-    scheduledOrder = Some(Pickup(move))
-    log.debug(s"--------- Send HasScheduledOrder($elevatorId, true) to control system")
-    controlSystem ! HasScheduledOrder(elevatorId, true)
+  def savePickupOrder(pickup: Pickup): Unit = {
+    this.scheduledOrder = Some(pickup)
+    log.debug(s"--------- Send HasScheduledOrder($elevatorId, Some($pickup)) to control system")
+    controlSystem ! UpdateScheduledOrder(elevatorId, scheduledOrder)
   }
 }
 

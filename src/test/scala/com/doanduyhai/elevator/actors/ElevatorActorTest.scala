@@ -33,10 +33,10 @@ class ElevatorActorTest extends TestKit(ActorSystem("ElevatorActorSystem",
       elevator ! Pickup(Move(3, 1))
 
       expectMsgAllOf(
-        HasScheduledOrder(1,true),
+        UpdateScheduledOrder(1, Some(Pickup(Move(3, 1)))),
         UpdateStatus(1, Move(5,3)), UpdateStatus(1, Move(4,3)),
         UpdateStatus(1, Still(3)),
-        HasScheduledOrder(1,false),
+        UpdateScheduledOrder(1, None),
         UpdateStatus(1, Move(3,1)), UpdateStatus(1, Move(2,1)),
         UpdateStatus(1, Still(1)))
     }
@@ -47,10 +47,10 @@ class ElevatorActorTest extends TestKit(ActorSystem("ElevatorActorSystem",
       elevator ! Pickup(Move(4, 2))
 
       expectMsgAllOf(
-        HasScheduledOrder(1,true),
+        UpdateScheduledOrder(1, Some(Pickup(Move(4, 2)))),
         UpdateStatus(1, Move(1,4)), UpdateStatus(1, Move(2,4)), UpdateStatus(1, Move(3,4)),
         UpdateStatus(1, Still(4)),
-        HasScheduledOrder(1,false),
+        UpdateScheduledOrder(1, None),
         UpdateStatus(1, Move(4,2)), UpdateStatus(1, Move(3,2)),
         UpdateStatus(1, Still(2)))
     }
@@ -61,12 +61,12 @@ class ElevatorActorTest extends TestKit(ActorSystem("ElevatorActorSystem",
       elevator ! Pickup(Move(5, 2))
 
       expectMsgAllOf(
-        HasScheduledOrder(1,true),
+        UpdateScheduledOrder(1, Some(Pickup(Move(5, 2)))),
         UpdateStatus(1, Move(2,3)),
         UpdateStatus(1, Still(3)),
         UpdateStatus(1, Move(3,5)),UpdateStatus(1, Move(4,5)),
         UpdateStatus(1, Still(5)),
-        HasScheduledOrder(1,false),
+        UpdateScheduledOrder(1, None),
         UpdateStatus(1, Move(5,2)),UpdateStatus(1, Move(4,2)), UpdateStatus(1, Move(3,2)),
         UpdateStatus(1, Still(2)))
     }
