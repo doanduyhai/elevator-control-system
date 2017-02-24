@@ -18,7 +18,7 @@ class ElevatorActorTest extends TestKit(ActorSystem("ElevatorActorSystem",
   "ElevatorActor" must  {
 
     "move to target floor from initial pickup floor" in {
-      val elevator = system.actorOf(Props(new ElevatorActor(1, 10.millisecond, Still(0))))
+      val elevator = system.actorOf(Props(new ElevatorActor(1, 10.millisecond, testActor, Still(0))))
 
       elevator ! Pickup(Move(0, 3))
 
@@ -28,7 +28,7 @@ class ElevatorActorTest extends TestKit(ActorSystem("ElevatorActorSystem",
     }
 
     "move to target floor from floor higher than pickup floor" in {
-      val elevator = system.actorOf(Props(new ElevatorActor(1, 10.millisecond, Still(5))))
+      val elevator = system.actorOf(Props(new ElevatorActor(1, 10.millisecond, testActor, Still(5))))
 
       elevator ! Pickup(Move(3, 1))
 
@@ -42,7 +42,7 @@ class ElevatorActorTest extends TestKit(ActorSystem("ElevatorActorSystem",
     }
 
     "move to target floor from floor lower than pickup floor" in {
-      val elevator = system.actorOf(Props(new ElevatorActor(1, 10.millisecond, Still(1))))
+      val elevator = system.actorOf(Props(new ElevatorActor(1, 10.millisecond, testActor, Still(1))))
 
       elevator ! Pickup(Move(4, 2))
 
@@ -56,7 +56,7 @@ class ElevatorActorTest extends TestKit(ActorSystem("ElevatorActorSystem",
     }
 
     "save pickup order and move to target floor when current move is finished" in {
-      val elevator = system.actorOf(Props(new ElevatorActor(1, 10.millisecond, Move(1, 3))))
+      val elevator = system.actorOf(Props(new ElevatorActor(1, 10.millisecond, testActor, Move(1, 3))))
 
       elevator ! Pickup(Move(5, 2))
 
@@ -72,7 +72,7 @@ class ElevatorActorTest extends TestKit(ActorSystem("ElevatorActorSystem",
     }
 
     "throws exception when already has scheduled order" in {
-      val elevator = system.actorOf(Props(new ElevatorActor(1, 10.millisecond, Move(1, 3), Option(Pickup(Move(5,2))))))
+      val elevator = system.actorOf(Props(new ElevatorActor(1, 10.millisecond, testActor, Move(1, 3), Option(Pickup(Move(5,2))))))
 
       EventFilter.error(message = s"Cannot accept Pickup(Move(3,0)) " +
         s"because the elevator is moving right now and a pickup Pickup(Move(5,2)) is already scheduled", occurrences = 1) intercept {

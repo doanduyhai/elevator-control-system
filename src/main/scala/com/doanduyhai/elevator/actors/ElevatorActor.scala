@@ -34,81 +34,77 @@ case class Still(floor: Int) extends ElevatorStatus {
 }
 
 
-class ElevatorActor(val elevatorId: Int, val movingSpeed: FiniteDuration,
+class ElevatorActor(val elevatorId: Int, val movingSpeed: FiniteDuration, val controlSystem:ActorRef,
                     private var elevatorStatus: ElevatorStatus, private var scheduledOrder: Option[Pickup]=None)
   extends Actor with ActorLogging {
 
   def receive: Receive = {
 
-    case Pickup(move) => elevatorStatus match {
+    case Pickup(pickup) => elevatorStatus match {
       case Still(currentFloor) => {
-        if (currentFloor != move.currentFloor) {
-          scheduleAnOrder(sender, move)
-          this.elevatorStatus = Move(currentFloor, move.currentFloor)
-          val nextStep = elevatorStatus.nextStep
-          scheduleNextMove(nextStep)
-          log.debug(s"After receiving Pickup($move), add scheduledOrder $scheduledOrder and set state = $elevatorStatus, nextStep = $nextStep")
+        if (currentFloor != pickup.currentFloor) {
+          savePickupOrder(pickup)
+          this.elevatorStatus = Move(currentFloor, pickup.currentFloor)
+//          log.debug(s"After receiving Pickup($move), add scheduledOrder $scheduledOrder and set state = $elevatorStatus, nextStep = $nextStep")
         } else {
-          this.elevatorStatus = Move(move.currentFloor, move.targetFloor)
-          val nextStep = elevatorStatus.nextStep
-          scheduleNextMove(nextStep)
-          log.debug(s"After receiving Pickup($move), set state = $elevatorStatus, nextStep = $nextStep")
+          this.elevatorStatus = Move(pickup.currentFloor, pickup.targetFloor)
+//          log.debug(s"After receiving Pickup($move), set state = $elevatorStatus, nextStep = $nextStep")
         }
-        sendStatusToControlSystem(sender)
+        scheduleNextMove(this.elevatorStatus.nextStep)
+        sendStatusToControlSystem()
       }
-      case move @ Move(_,_) => scheduledOrder match {
+      case currentMove @ Move(_,_) => scheduledOrder match {
         case Some(scheduledPickup) =>
-          log.error(s"Cannot accept Pickup($move) because the elevator is moving right now and a pickup $scheduledPickup is already scheduled")
+          log.error(s"Cannot accept Pickup($pickup) because the elevator is moving right now and a pickup $scheduledPickup is already scheduled")
         case None =>
-          scheduleAnOrder(sender, move)
           log.info(s"No pending order, save the pickup order for later")
-          scheduleNextMove(move.nextStep)
+          savePickupOrder(pickup)
+          scheduleNextMove(currentMove.nextStep)
       }
     }
 
-    case enRoute @ EnRoute(sender, state) => {
+    case enRoute @ EnRoute(state) => {
+      this.elevatorStatus = state
       state match {
         case Move(_,_) =>
-          this.elevatorStatus = state
-          scheduleNextMove(state.nextStep)
-          sendStatusToControlSystem(sender)
+          scheduleNextMove(this.elevatorStatus.nextStep)
         case still @ Still(currentFloor) => scheduledOrder match {
-          case Some(Pickup(move)) => {
-            if (currentFloor != move.currentFloor) {
-              scheduleNextMove(Move(currentFloor, move.currentFloor))
+          case Some(Pickup(scheduledPickup)) => {
+            if (currentFloor != scheduledPickup.currentFloor) {
+              scheduleNextMove(Move(currentFloor, scheduledPickup.currentFloor))
             } else {
-              removeOrderSchedule(sender)
-              scheduleNextMove(move)
+              removeOrderSchedule()
+              scheduleNextMove(scheduledPickup)
             }
-            this.elevatorStatus = state
-            sendStatusToControlSystem(sender)
           }
           case None =>
             log.info(s"Elevator has reached destination floor : $currentFloor, state = $state")
-            this.elevatorStatus = state
-            sendStatusToControlSystem(sender)
         }
       }
-      log.debug(s"After receiving EnRoute($state), set state = $state, scheduledOrder = $scheduledOrder, nextStep = ${state.nextStep}")
+      sendStatusToControlSystem()
+      //      log.info(s"After receiving EnRoute($state), set state = $state, scheduledOrder = $scheduledOrder, nextStep = ${state.nextStep}")
     }
   }
 
-  def sendStatusToControlSystem(sender: ActorRef): Unit = {
-    sender ! UpdateStatus(this.elevatorId, this.elevatorStatus)
+  def sendStatusToControlSystem(): Unit = {
+    log.debug(s"--------- Send $elevatorStatus to control system")
+    controlSystem ! UpdateStatus(this.elevatorId, this.elevatorStatus)
   }
 
   def scheduleNextMove(nextStep: ElevatorStatus): Unit = {
-    context.system.scheduler.scheduleOnce(movingSpeed, self, EnRoute(sender, nextStep))
+    context.system.scheduler.scheduleOnce(movingSpeed, self, EnRoute(nextStep))
   }
 
-  def removeOrderSchedule(sender: ActorRef): Unit = {
+  def removeOrderSchedule(): Unit = {
     scheduledOrder = None
-    sender ! HasScheduledOrder(elevatorId, false)
+    log.debug(s"--------- Send HasScheduledOrder($elevatorId, false) to control system")
+    controlSystem ! HasScheduledOrder(elevatorId, false)
   }
 
-  def scheduleAnOrder(sender: ActorRef, move: Move): Unit = {
+  def savePickupOrder(move: Move): Unit = {
     scheduledOrder = Some(Pickup(move))
-    sender ! HasScheduledOrder(elevatorId, true)
+    log.debug(s"--------- Send HasScheduledOrder($elevatorId, true) to control system")
+    controlSystem ! HasScheduledOrder(elevatorId, true)
   }
 }
 

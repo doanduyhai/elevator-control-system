@@ -1,11 +1,8 @@
 package com.doanduyhai.elevator.actors
 
-import akka.actor.ActorRef
-
-
 sealed trait Messages
 
-case class EnRoute(controlSystem: ActorRef, status: ElevatorStatus) extends Messages
+case class EnRoute(status: ElevatorStatus) extends Messages
 case class Pickup(direction: Move) extends Messages
 case class UpdateStatus(elevatorId: Int, status: ElevatorStatus) extends Messages
 case class HasScheduledOrder(elevatorId: Int, hasScheduledOrder: Boolean) extends Messages
