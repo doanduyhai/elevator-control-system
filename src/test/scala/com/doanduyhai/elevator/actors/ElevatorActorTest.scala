@@ -18,7 +18,7 @@ class ElevatorActorTest extends TestKit(ActorSystem("ElevatorActorSystem",
 
     "move to target floor from initial pickup floor" in {
       //Given
-      val elevator = system.actorOf(Props(new ElevatorActor(1, testActor, Still(0))))
+      val elevator = system.actorOf(Props(new ElevatorActor(1, testActor, AtFloor(0))))
 
       //When
       elevator ! Pickup(Move(0, 3))
@@ -26,12 +26,12 @@ class ElevatorActorTest extends TestKit(ActorSystem("ElevatorActorSystem",
       //Then
       expectMsgAllOf(
         UpdateStatus(1, Move(0,3)), UpdateStatus(1, Move(1,3)), UpdateStatus(1, Move(2,3)),
-        UpdateStatus(1, Still(3)))
+        UpdateStatus(1, AtFloor(3)))
     }
 
     "move to target floor from floor higher than pickup floor" in {
       //Given
-      val elevator = system.actorOf(Props(new ElevatorActor(1, testActor, Still(5))))
+      val elevator = system.actorOf(Props(new ElevatorActor(1, testActor, AtFloor(5))))
 
       //When
       elevator ! Pickup(Move(3, 1))
@@ -40,15 +40,15 @@ class ElevatorActorTest extends TestKit(ActorSystem("ElevatorActorSystem",
       expectMsgAllOf(
         UpdateScheduledOrder(1, Some(Pickup(Move(3, 1)))),
         UpdateStatus(1, Move(5,3)), UpdateStatus(1, Move(4,3)),
-        UpdateStatus(1, Still(3)),
+        UpdateStatus(1, AtFloor(3)),
         UpdateScheduledOrder(1, None),
         UpdateStatus(1, Move(3,1)), UpdateStatus(1, Move(2,1)),
-        UpdateStatus(1, Still(1)))
+        UpdateStatus(1, AtFloor(1)))
     }
 
     "move to target floor from floor lower than pickup floor" in {
       //Given
-      val elevator = system.actorOf(Props(new ElevatorActor(1, testActor, Still(1))))
+      val elevator = system.actorOf(Props(new ElevatorActor(1, testActor, AtFloor(1))))
 
       //When
       elevator ! Pickup(Move(4, 2))
@@ -57,10 +57,10 @@ class ElevatorActorTest extends TestKit(ActorSystem("ElevatorActorSystem",
       expectMsgAllOf(
         UpdateScheduledOrder(1, Some(Pickup(Move(4, 2)))),
         UpdateStatus(1, Move(1,4)), UpdateStatus(1, Move(2,4)), UpdateStatus(1, Move(3,4)),
-        UpdateStatus(1, Still(4)),
+        UpdateStatus(1, AtFloor(4)),
         UpdateScheduledOrder(1, None),
         UpdateStatus(1, Move(4,2)), UpdateStatus(1, Move(3,2)),
-        UpdateStatus(1, Still(2)))
+        UpdateStatus(1, AtFloor(2)))
     }
 
     "save pickup order and move to target floor when current move is finished" in {
@@ -74,15 +74,15 @@ class ElevatorActorTest extends TestKit(ActorSystem("ElevatorActorSystem",
       expectMsgAllOf(
         UpdateScheduledOrder(1, Some(Pickup(Move(5, 2)))),
         UpdateStatus(1, Move(2,3)),
-        UpdateStatus(1, Still(3)),
+        UpdateStatus(1, AtFloor(3)),
         UpdateStatus(1, Move(3,5)),UpdateStatus(1, Move(4,5)),
-        UpdateStatus(1, Still(5)),
+        UpdateStatus(1, AtFloor(5)),
         UpdateScheduledOrder(1, None),
         UpdateStatus(1, Move(5,2)),UpdateStatus(1, Move(4,2)), UpdateStatus(1, Move(3,2)),
-        UpdateStatus(1, Still(2)))
+        UpdateStatus(1, AtFloor(2)))
     }
 
-    "throws exception when already has scheduled order" in {
+    "write error message when already has scheduled order" in {
       //Given
       val elevator = system.actorOf(Props(new ElevatorActor(1, testActor, Move(1, 3), scheduledOrder = Option(Pickup(Move(5,2))))))
 

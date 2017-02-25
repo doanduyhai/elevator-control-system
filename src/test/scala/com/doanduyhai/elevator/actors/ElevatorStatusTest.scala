@@ -24,22 +24,22 @@ class ElevatorStatusTest extends FlatSpec with Matchers {
     val move: Move = Move(0, 1)
     val next = move.nextStep
 
-    next shouldBe Still(1)
-    next.nextStep shouldBe Still(1)
+    next shouldBe AtFloor(1)
+    next.nextStep shouldBe AtFloor(1)
   }
 
   "Move" should "become still if current floor == target floor" in {
     val move: Move = Move(1, 1)
     val next = move.nextStep
 
-    next shouldBe Still(1)
+    next shouldBe AtFloor(1)
   }
 
   "Still" should "stay still next step" in {
-    val still = Still(7)
+    val still = AtFloor(7)
     val next = still.nextStep
 
-    next shouldBe Still(7)
+    next shouldBe AtFloor(7)
   }
 
   "Move" should "throw exception for negative floor" in {

@@ -5,34 +5,34 @@ import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 
 
+
 sealed trait ElevatorStatus {
   def nextStep: ElevatorStatus
-  def isAvailable: Boolean
+  def isMoving: Boolean
 }
-
 case class Move(currentFloor:Int, targetFloor:Int) extends ElevatorStatus {
   if(currentFloor < 0 || targetFloor < 0) throw new IllegalArgumentException("Invalid negative floor")
 
   override def nextStep: ElevatorStatus = {
     if(Math.abs(targetFloor - currentFloor) == 1) {
-      Still(targetFloor)
+      AtFloor(targetFloor)
     } else if(targetFloor > currentFloor) {
       Move(currentFloor+1, targetFloor)
     }  else if(targetFloor == currentFloor) {
-      Still(targetFloor)
+      AtFloor(targetFloor)
     } else {
       Move(currentFloor - 1, targetFloor)
     }
   }
-
-  override def isAvailable = false
+  override def isMoving = true
 }
 
-case class Still(floor: Int) extends ElevatorStatus {
-  override def nextStep: ElevatorStatus = Still(floor)
-  override def isAvailable = true
+case class AtFloor(floor: Int) extends ElevatorStatus {
+  override def nextStep: ElevatorStatus = AtFloor(floor)
+  override def isMoving = false
 }
 
+private case class EnRoute(status: ElevatorStatus)
 
 class ElevatorActor(val elevatorId: Int, val controlSystem:ActorRef, private var elevatorStatus: ElevatorStatus,
                     val movingSpeed: FiniteDuration = 10.millisecond, private var scheduledOrder: Option[Pickup]=None)
@@ -41,7 +41,7 @@ class ElevatorActor(val elevatorId: Int, val controlSystem:ActorRef, private var
   def receive: Receive = {
 
     case p @ Pickup(pickup) => elevatorStatus match {
-      case Still(currentFloor) => {
+      case AtFloor(currentFloor) => {
         if (currentFloor != pickup.currentFloor) {
           savePickupOrder(p)
           this.elevatorStatus = Move(currentFloor, pickup.currentFloor)
@@ -68,12 +68,12 @@ class ElevatorActor(val elevatorId: Int, val controlSystem:ActorRef, private var
       state match {
         case Move(_,_) =>
           scheduleNextMove(this.elevatorStatus.nextStep)
-        case still @ Still(currentFloor) => scheduledOrder match {
+        case still @ AtFloor(currentFloor) => scheduledOrder match {
           case Some(Pickup(scheduledPickup)) => {
             if (currentFloor != scheduledPickup.currentFloor) {
               scheduleNextMove(Move(currentFloor, scheduledPickup.currentFloor))
             } else {
-              removeOrderSchedule()
+              removeScheduledOrder()
               scheduleNextMove(scheduledPickup)
             }
           }
@@ -95,7 +95,7 @@ class ElevatorActor(val elevatorId: Int, val controlSystem:ActorRef, private var
     context.system.scheduler.scheduleOnce(movingSpeed, self, EnRoute(nextStep))
   }
 
-  def removeOrderSchedule(): Unit = {
+  def removeScheduledOrder(): Unit = {
     this.scheduledOrder = None
     log.debug(s"--------- Send HasScheduledOrder($elevatorId, None) to control system")
     controlSystem ! UpdateScheduledOrder(elevatorId, None)
