@@ -13,3 +13,4 @@ case object GetQueueStatus extends Messages
 case object ProcessOrderQueue
 
 case object ExecuteSimulation extends Messages
+case class ElevatorStatusReply(statuses: Map[Int, (ElevatorStatus, Option[Pickup])]) extends Messages

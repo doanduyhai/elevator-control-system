@@ -7,6 +7,7 @@ import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class ControlSystemActor(val elevators:Map[Int, (ActorRef,ElevatorStatus,Option[Pickup])],
+                         val simulationActor:ActorRef,
                          private var orderQueue:Queue[Pickup] = Queue.empty[Pickup],
                          val orderQueueProcessingFrequency: FiniteDuration = 30.millisecond,
                          val maxQueueSize:Int = 10) extends Actor with ActorLogging {
@@ -39,8 +40,8 @@ class ControlSystemActor(val elevators:Map[Int, (ActorRef,ElevatorStatus,Option[
       elevatorsScheduledOrder += ((elevatorId, option))
       if(this.orderQueue.size > 0 && availableElevator.isDefined) scheduleADequeuOperation
     }
-    case GetElevatorStatus => sender ! elevatorsStatus.map{case(key, status) => (key, (status,elevatorsScheduledOrder(key)))}
-    case GetQueueStatus => sender ! this.orderQueue
+    case GetElevatorStatus => simulationActor ! ElevatorStatusReply(elevatorsStatus.map{case(key, status) => (key, (status,elevatorsScheduledOrder(key)))})
+    case GetQueueStatus => simulationActor ! this.orderQueue
 
     case pickupOrder @ Pickup(_) => {
       availableElevator match  {

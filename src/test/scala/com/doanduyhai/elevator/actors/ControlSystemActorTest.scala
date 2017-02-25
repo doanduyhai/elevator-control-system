@@ -23,13 +23,13 @@ class ControlSystemActorTest extends TestKit(ActorSystem("ControlSystemActorSyst
       val elevator2 = TestProbe()
 
       val elevators = Map(1 -> (elevator1.ref, AtFloor(0), None), 2 ->(elevator2.ref, Move(3, 0), None))
-      val controlSystem = system.actorOf(Props(new ControlSystemActor(elevators)))
+      val controlSystem = system.actorOf(Props(new ControlSystemActor(elevators, testActor)))
 
       //When
       controlSystem ! GetElevatorStatus
 
       //Then
-      expectMsg(Map(1 -> (AtFloor(0), None), 2 -> (Move(3, 0), None)))
+      expectMsg(ElevatorStatusReply(Map(1 -> (AtFloor(0), None), 2 -> (Move(3, 0), None))))
     }
 
     "forward the pickup order to a free elevator" in {
@@ -38,7 +38,7 @@ class ControlSystemActorTest extends TestKit(ActorSystem("ControlSystemActorSyst
       val elevator2 = TestProbe()
 
       val elevators = Map(1 -> (elevator1.ref, AtFloor(0), None), 2 ->(elevator2.ref, Move(3, 0), None))
-      val controlSystem = system.actorOf(Props(new ControlSystemActor(elevators)))
+      val controlSystem = system.actorOf(Props(new ControlSystemActor(elevators, testActor)))
 
       //When
       controlSystem ! Pickup(Move(3,1))
@@ -53,14 +53,14 @@ class ControlSystemActorTest extends TestKit(ActorSystem("ControlSystemActorSyst
       val elevator2 = TestProbe()
 
       val elevators = Map(1 -> (elevator1.ref, AtFloor(0), None), 2 ->(elevator2.ref, Move(3, 0), None))
-      val controlSystem = system.actorOf(Props(new ControlSystemActor(elevators)))
+      val controlSystem = system.actorOf(Props(new ControlSystemActor(elevators, testActor)))
 
       //When
       controlSystem ! UpdateStatus(1, Move(0, 4))
 
       //Then
       controlSystem ! GetElevatorStatus
-      expectMsg(Map(1 -> (Move(0, 4), None), 2 -> (Move(3, 0), None)))
+      expectMsg(ElevatorStatusReply(Map(1 -> (Move(0, 4), None), 2 -> (Move(3, 0), None))))
     }
 
     "update scheduled order for an elevator" in {
@@ -69,14 +69,14 @@ class ControlSystemActorTest extends TestKit(ActorSystem("ControlSystemActorSyst
       val elevator2 = TestProbe()
 
       val elevators = Map(1 -> (elevator1.ref, Move(0, 4), None), 2 ->(elevator2.ref, Move(3, 0), None))
-      val controlSystem = system.actorOf(Props(new ControlSystemActor(elevators)))
+      val controlSystem = system.actorOf(Props(new ControlSystemActor(elevators, testActor)))
 
       //When
       controlSystem ! UpdateScheduledOrder(1, Some(Pickup(Move(5,2))))
 
       //Then
       controlSystem ! GetElevatorStatus
-      expectMsg(Map(1 -> (Move(0, 4), Some(Pickup(Move(5,2)))), 2 -> (Move(3, 0), None)))
+      expectMsg(ElevatorStatusReply(Map(1 -> (Move(0, 4), Some(Pickup(Move(5,2)))), 2 -> (Move(3, 0), None))))
     }
 
     "push a pickup order to an elevator which has no scheduled order" in {
@@ -90,7 +90,7 @@ class ControlSystemActorTest extends TestKit(ActorSystem("ControlSystemActorSyst
         2 ->(elevator2.ref, Move(3, 0), None),
         3 ->(elevator3.ref, Move(2, 3), Some(Pickup(Move(3,5)))))
 
-      val controlSystem = system.actorOf(Props(new ControlSystemActor(elevators)))
+      val controlSystem = system.actorOf(Props(new ControlSystemActor(elevators, testActor)))
 
       //When
       controlSystem ! Pickup(Move(6,0))
@@ -110,7 +110,7 @@ class ControlSystemActorTest extends TestKit(ActorSystem("ControlSystemActorSyst
         2 ->(elevator2.ref, Move(3, 0), Some(Pickup(Move(0,2)))),
         3 ->(elevator3.ref, Move(2, 3), Some(Pickup(Move(3,5)))))
 
-      val controlSystem = system.actorOf(Props(new ControlSystemActor(elevators, Queue(Pickup(Move(5,6))))))
+      val controlSystem = system.actorOf(Props(new ControlSystemActor(elevators, testActor, Queue(Pickup(Move(5,6))))))
 
       //When
       controlSystem ! Pickup(Move(0,1))
@@ -131,7 +131,8 @@ class ControlSystemActorTest extends TestKit(ActorSystem("ControlSystemActorSyst
         2 ->(elevator2.ref, Move(3, 0), Some(Pickup(Move(0,2)))),
         3 ->(elevator3.ref, Move(2, 3), Some(Pickup(Move(3,5)))))
 
-      val controlSystem = system.actorOf(Props(new ControlSystemActor(elevators, Queue(Pickup(Move(5,6)), Pickup(Move(3,4))))))
+      val controlSystem = system.actorOf(Props(new ControlSystemActor(elevators, testActor,
+        Queue(Pickup(Move(5,6)), Pickup(Move(3,4))))))
 
       //When
       controlSystem ! UpdateScheduledOrder(1, None)
@@ -154,7 +155,8 @@ class ControlSystemActorTest extends TestKit(ActorSystem("ControlSystemActorSyst
         2 ->(elevator2.ref, Move(3, 0), Some(Pickup(Move(0,2)))),
         3 ->(elevator3.ref, Move(2, 3), Some(Pickup(Move(3,5)))))
 
-      val controlSystem = system.actorOf(Props(new ControlSystemActor(elevators, Queue(Pickup(Move(5,6))), maxQueueSize = 1)))
+      val controlSystem = system.actorOf(Props(new ControlSystemActor(elevators, testActor,
+        Queue(Pickup(Move(5,6))), maxQueueSize = 1)))
 
       //Then
       EventFilter.error(message = s"Cannot enqueue order Pickup(Move(1,7)) because the queue is full", occurrences = 1) intercept {
@@ -164,7 +166,7 @@ class ControlSystemActorTest extends TestKit(ActorSystem("ControlSystemActorSyst
 
     "write info message when dequeueing an empty queue" in {
       //Given
-      val controlSystem = system.actorOf(Props(new ControlSystemActor(Map())))
+      val controlSystem = system.actorOf(Props(new ControlSystemActor(Map(), testActor)))
 
       //Then
       EventFilter.info(message = "Order queue is empty", occurrences = 1) intercept {
@@ -183,7 +185,8 @@ class ControlSystemActorTest extends TestKit(ActorSystem("ControlSystemActorSyst
         2 ->(elevator2.ref, Move(3, 0), Some(Pickup(Move(0,2)))),
         3 ->(elevator3.ref, Move(2, 3), Some(Pickup(Move(3,5)))))
 
-      val controlSystem = system.actorOf(Props(new ControlSystemActor(elevators, Queue(Pickup(Move(5,6))), maxQueueSize = 1)))
+      val controlSystem = system.actorOf(Props(new ControlSystemActor(elevators, testActor,
+        Queue(Pickup(Move(5,6))), maxQueueSize = 1)))
 
       //When
       controlSystem ! ExecuteSimulation
