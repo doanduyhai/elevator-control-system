@@ -92,5 +92,71 @@ class ElevatorActorTest extends TestKit(ActorSystem("ElevatorActorSystem",
         elevator ! Pickup(Move(3, 0))
       }
     }
+
+    "execute simulation with initial Move state and no scheduled order" in {
+      //Given
+      val elevator = system.actorOf(Props(new ElevatorActor(1, testActor, Move(1, 3))))
+
+      //When
+      elevator ! ExecuteSimulation
+
+      //Then
+      expectMsgAllOf(
+        UpdateStatus(1, Move(2,3)),
+        UpdateStatus(1, AtFloor(3)))
+
+    }
+
+    "execute simulation with initial Move state and scheduled order" in {
+      //Given
+      val elevator = system.actorOf(Props(new ElevatorActor(1, testActor, Move(1, 3),
+        scheduledOrder = Option(Pickup(Move(5,2))))))
+
+      //When
+      elevator ! ExecuteSimulation
+
+      //Then
+      expectMsgAllOf(
+        UpdateStatus(1, Move(2,3)),
+        UpdateStatus(1, AtFloor(3)),
+        UpdateStatus(1, Move(3,5)),
+        UpdateStatus(1, Move(4,5)),
+        UpdateStatus(1, AtFloor(5)),
+        UpdateScheduledOrder(1, None),
+        UpdateStatus(1, Move(5,2)),
+        UpdateStatus(1, Move(4,2)),
+        UpdateStatus(1, Move(3,2)),
+        UpdateStatus(1, AtFloor(2)))
+    }
+
+    "execute simulation with AfFloor state and scheduled order" in {
+      //Given
+      val elevator = system.actorOf(Props(new ElevatorActor(1, testActor, AtFloor(3),
+        scheduledOrder = Option(Pickup(Move(5,2))))))
+
+      //When
+      elevator ! ExecuteSimulation
+
+      //Then
+      expectMsgAllOf(
+        UpdateStatus(1, Move(3,5)),
+        UpdateStatus(1, Move(4,5)),
+        UpdateStatus(1, AtFloor(5)),
+        UpdateScheduledOrder(1, None),
+        UpdateStatus(1, Move(5,2)),
+        UpdateStatus(1, Move(4,2)),
+        UpdateStatus(1, Move(3,2)),
+        UpdateStatus(1, AtFloor(2)))
+    }
+
+    "execute simulation with AfFloor state and no scheduled order" in {
+      //Given
+      val elevator = system.actorOf(Props(new ElevatorActor(1, testActor, AtFloor(3))))
+
+      //Then
+      EventFilter.info(message = "No order to execute", occurrences = 1) intercept {
+        elevator ! ExecuteSimulation
+      }
+    }
   }
 }

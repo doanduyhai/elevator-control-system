@@ -45,10 +45,8 @@ class ElevatorActor(val elevatorId: Int, val controlSystem:ActorRef, private var
         if (currentFloor != pickup.currentFloor) {
           savePickupOrder(p)
           this.elevatorStatus = Move(currentFloor, pickup.currentFloor)
-//          log.debug(s"After receiving Pickup($move), add scheduledOrder $scheduledOrder and set state = $elevatorStatus, nextStep = $nextStep")
         } else {
           this.elevatorStatus = Move(pickup.currentFloor, pickup.targetFloor)
-//          log.debug(s"After receiving Pickup($move), set state = $elevatorStatus, nextStep = $nextStep")
         }
         scheduleNextMove(this.elevatorStatus.nextStep)
         sendStatusToControlSystem()
@@ -68,21 +66,31 @@ class ElevatorActor(val elevatorId: Int, val controlSystem:ActorRef, private var
       state match {
         case Move(_,_) =>
           scheduleNextMove(this.elevatorStatus.nextStep)
-        case still @ AtFloor(currentFloor) => scheduledOrder match {
-          case Some(Pickup(scheduledPickup)) => {
-            if (currentFloor != scheduledPickup.currentFloor) {
-              scheduleNextMove(Move(currentFloor, scheduledPickup.currentFloor))
-            } else {
-              removeScheduledOrder()
-              scheduleNextMove(scheduledPickup)
-            }
-          }
-          case None =>
-            log.info(s"Elevator has reached destination floor : $currentFloor, state = $state")
-        }
+        case AtFloor(currentFloor) => computeNextStepFromAtFloor(currentFloor,
+          s"Elevator has reached destination floor : $currentFloor, state = $state")
       }
       sendStatusToControlSystem()
-      //      log.info(s"After receiving EnRoute($state), set state = $state, scheduledOrder = $scheduledOrder, nextStep = ${state.nextStep}")
+    }
+
+    case ExecuteSimulation => this.elevatorStatus match {
+      case Move(_,_) => scheduleNextMove(this.elevatorStatus.nextStep)
+      case AtFloor(currentFloor)  => computeNextStepFromAtFloor(currentFloor,"No order to execute")
+    }
+
+  }
+
+  def computeNextStepFromAtFloor(currentFloor: Int, logMsg:String): Unit = {
+    scheduledOrder match {
+      case Some(Pickup(scheduledPickup)) => {
+        if (currentFloor != scheduledPickup.currentFloor) {
+          scheduleNextMove(Move(currentFloor, scheduledPickup.currentFloor))
+        } else {
+          removeScheduledOrder()
+          scheduleNextMove(scheduledPickup)
+        }
+      }
+      case None =>
+        log.info(logMsg)
     }
   }
 
