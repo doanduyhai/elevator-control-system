@@ -10,5 +10,6 @@ case class UpdateScheduledOrder(elevatorId: Int, order: Option[Pickup]) extends 
 //Control system messages
 case object GetElevatorStatus extends Messages
 case object GetQueueStatus extends Messages
+case object ProcessOrderQueue
 
 case object ExecuteSimulation extends Messages
