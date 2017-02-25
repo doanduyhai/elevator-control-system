@@ -171,5 +171,27 @@ class ControlSystemActorTest extends TestKit(ActorSystem("ControlSystemActorSyst
         controlSystem ! ProcessOrderQueue
       }
     }
+
+    "send ExecuteSimulation command to all elevators" in {
+      //Given
+      val elevator1 = TestProbe()
+      val elevator2 = TestProbe()
+      val elevator3 = TestProbe()
+
+      val elevators = Map(
+        1 -> (elevator1.ref, Move(0, 4), Some(Pickup(Move(5,2)))),
+        2 ->(elevator2.ref, Move(3, 0), Some(Pickup(Move(0,2)))),
+        3 ->(elevator3.ref, Move(2, 3), Some(Pickup(Move(3,5)))))
+
+      val controlSystem = system.actorOf(Props(new ControlSystemActor(elevators, Queue(Pickup(Move(5,6))), maxQueueSize = 1)))
+
+      //When
+      controlSystem ! ExecuteSimulation
+
+      //Then
+      elevator1.expectMsg(ExecuteSimulation)
+      elevator2.expectMsg(ExecuteSimulation)
+      elevator3.expectMsg(ExecuteSimulation)
+    }
   }
 }

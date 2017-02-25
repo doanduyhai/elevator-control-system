@@ -66,6 +66,8 @@ class ControlSystemActor(val elevators:Map[Int, (ActorRef,ElevatorStatus,Option[
       }
       case None => log.info("Order queue is empty")
     }
+
+    case ExecuteSimulation => elevatorById.values.foreach( _ ! ExecuteSimulation)
   }
 
   def scheduleADequeuOperation: Unit = {
