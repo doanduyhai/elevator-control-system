@@ -1,199 +1,151 @@
 package com.doanduyhai.elevator.actors
 
-import akka.actor.{Props, ActorSystem}
-import akka.testkit.{EventFilter, TestProbe, ImplicitSender, TestKit}
+import java.io.{PrintStream, ByteArrayOutputStream}
+
+import akka.actor.{ActorSystem}
+import akka.testkit._
 import com.typesafe.config.ConfigFactory
-import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
+import org.scalatest.{FlatSpecLike, BeforeAndAfterAll, Matchers}
 
 import scala.collection.immutable.Queue
 
 
 class ControlSystemActorTest extends TestKit(ActorSystem("ControlSystemActorSystem",
   ConfigFactory.parseString("""akka.loggers = ["akka.testkit.TestEventListener"]"""))) with ImplicitSender
-  with WordSpecLike with Matchers with BeforeAndAfterAll {
+  with FlatSpecLike with Matchers with BeforeAndAfterAll {
 
   override def afterAll {
     TestKit.shutdownActorSystem(system)
   }
 
-  "ControlSystemActor" must  {
+  "ControlSystemActor" should "update elevator status map but do not start processing" in {
+    //Given
+    val controlSystem = TestActorRef(new ControlSystemActor(2))
+    val underlyingActor = controlSystem.underlyingActor
 
-    "get the status of all current elevators" in {
-      //Given
-      val elevator1 = TestProbe()
-      val elevator2 = TestProbe()
-      val simulationActor = TestProbe()
+    //When
+    controlSystem ! UpdateStatus(1, Move(3,4), Some(Pickup(Move(1,8))))
 
-      val elevators = Map(1 -> (elevator1.ref, AtFloor(0), None), 2 ->(elevator2.ref, Move(3, 0), None))
-      val controlSystem = system.actorOf(Props(new ControlSystemActor(elevators, simulationActor.ref)))
+    //Then
+    underlyingActor.elevatorsStatus shouldBe(Map(1 -> (Move(3,4),Some(Pickup(Move(1,8))))))
+    underlyingActor.elevatorById shouldBe(Map(1 -> testActor))
+    underlyingActor.orderQueue shouldBe(Queue.empty[Pickup])
+  }
 
-      //When
-      controlSystem ! GetElevatorStatus
+  "ControlSystemActor" should "display system on elevator status update" in {
+    //Given
+    val baos = new ByteArrayOutputStream()
+    val controlSystem = TestActorRef(new ControlSystemActor(2, printStream = new PrintStream(baos)))
 
-      //Then
-      simulationActor.expectMsg(ElevatorsStatuses(Map(1 -> (AtFloor(0), None), 2 -> (Move(3, 0), None))))
-    }
+    //When
+    controlSystem ! UpdateStatus(1, Move(3,4), Some(Pickup(Move(1,8))))
+    controlSystem ! UpdateStatus(2, Move(0,2), None)
 
-    "forward the pickup order to a free elevator" in {
-      //Given
-      val elevator1 = TestProbe()
-      val elevator2 = TestProbe()
-      val simulationActor = TestProbe()
+    //Then
+    val display = new String(baos.toByteArray())
 
-      val elevators = Map(1 -> (elevator1.ref, AtFloor(0), None), 2 ->(elevator2.ref, Move(3, 0), None))
-      val controlSystem = system.actorOf(Props(new ControlSystemActor(elevators, simulationActor.ref)))
+    display should include(
+      """
+        |    Control system orders queue: [].
+        |
+        |--------------------------------------------------
+        |1[1->8]:  _  _  _ |3>{4}
+        |2[    ]: |0> _ {2}
+        |--------------------------------------------------""".stripMargin)
+  }
 
-      //When
-      controlSystem ! Pickup(Move(3,1))
+  "ControlSystemActor" should "push queue order to a free elevator" in {
+    //Given
+    val elevator1 = TestProbe()
+    val elevator2 = TestProbe()
+    val baos = new ByteArrayOutputStream()
+    val controlSystem = TestActorRef(new ControlSystemActor(2, orderQueue = Queue(Pickup(Move(1,3))), printStream = new PrintStream(baos)))
+    val underlyingActor = controlSystem.underlyingActor
 
-      //Then
-      elevator1.expectMsgAnyOf(Pickup(Move(3,1)))
-    }
+    //When
+    elevator1.send(controlSystem, UpdateStatus(1, Move(3,4), Some(Pickup(Move(1,8)))))
+    elevator2.send(controlSystem, UpdateStatus(2, AtFloor(3), None))
 
-    "update status for an elevator" in {
-      //Given
-      val elevator1 = TestProbe()
-      val elevator2 = TestProbe()
-      val simulationActor = TestProbe()
+    //Then
+    elevator2.expectMsg(Pickup(Move(1,3)))
+    underlyingActor.elevatorsStatus(2) shouldBe((Move(1,3), None))
+    val display = new String(baos.toByteArray())
 
-      val elevators = Map(1 -> (elevator1.ref, AtFloor(0), None), 2 ->(elevator2.ref, Move(3, 0), None))
-      val controlSystem = system.actorOf(Props(new ControlSystemActor(elevators, simulationActor.ref)))
+    display should include(
+      """
+        |    Control system orders queue: [Move(1,3)].
+        |
+        |--------------------------------------------------
+        |1[1->8]:  _  _  _ |3>{4}
+        |2[    ]:  _  _  _ |3|
+        |--------------------------------------------------""".stripMargin)
+    display should include("Send queued pickup order: Move(1,3) to elevator 2")
+  }
 
-      //When
-      controlSystem ! UpdateStatus(1, Move(0, 4), None)
+  "ControlSystemActor" should "push queue order to moving elevator with no scheduled order" in {
+    //Given
+    val elevator1 = TestProbe()
+    val elevator2 = TestProbe()
+    val baos = new ByteArrayOutputStream()
+    val controlSystem = TestActorRef(new ControlSystemActor(2, orderQueue = Queue(Pickup(Move(1,3))), printStream = new PrintStream(baos)))
+    val underlyingActor = controlSystem.underlyingActor
 
-      //Then
-      controlSystem ! GetElevatorStatus
-      simulationActor.expectMsg(ElevatorsStatuses(Map(1 -> (Move(0, 4), None), 2 -> (Move(3, 0), None))))
-    }
+    //When
+    elevator1.send(controlSystem, UpdateStatus(1, Move(3,4), Some(Pickup(Move(1,8)))))
+    elevator2.send(controlSystem, UpdateStatus(2, Move(0, 4), None))
 
-    "update scheduled order for an elevator" in {
-      //Given
-      val elevator1 = TestProbe()
-      val elevator2 = TestProbe()
-      val simulationActor = TestProbe()
+    //Then
+    elevator2.expectMsg(Pickup(Move(1,3)))
+    underlyingActor.elevatorsStatus(2) shouldBe((Move(0,4), Some(Pickup(Move(1,3)))))
 
-      val elevators = Map(1 -> (elevator1.ref, Move(0, 4), None), 2 ->(elevator2.ref, Move(3, 0), None))
-      val controlSystem = system.actorOf(Props(new ControlSystemActor(elevators, simulationActor.ref)))
+    val display = new String(baos.toByteArray())
 
-      //When
-      controlSystem ! UpdateStatus(1, Move(0, 4), Some(Pickup(Move(5,2))))
+    display should include(
+      """
+        |    Control system orders queue: [Move(1,3)].
+        |
+        |--------------------------------------------------
+        |1[1->8]:  _  _  _ |3>{4}
+        |2[    ]: |0> _  _  _ {4}
+        |--------------------------------------------------""".stripMargin)
+    display should include("Send queued pickup order: Move(1,3) to elevator 2")
+  }
 
-      //Then
-      simulationActor.expectMsgAnyOf(ElevatorsStatuses(Map(1 -> (Move(0, 4), Some(Pickup(Move(5,2)))), 2 -> (Move(3, 0), None))))
-    }
+  "ControlSystemActor" should "not dequeue order when no elevator available" in {
+    //Given
+    val elevator1 = TestProbe()
+    val elevator2 = TestProbe()
+    val controlSystem = TestActorRef(new ControlSystemActor(2, orderQueue = Queue(Pickup(Move(1,3)))))
+    val underlyingActor = controlSystem.underlyingActor
 
-    "push a pickup order to an elevator which has no scheduled order" in {
-      //Given
-      val elevator1 = TestProbe()
-      val elevator2 = TestProbe()
-      val elevator3 = TestProbe()
-      val simulationActor = TestProbe()
+    //When
+    elevator1.send(controlSystem, UpdateStatus(1, Move(3,4), Some(Pickup(Move(1,8)))))
+    elevator2.send(controlSystem, UpdateStatus(2, Move(0,4), Some(Pickup(Move(5,3)))))
 
-      val elevators = Map(
-        1 -> (elevator1.ref, Move(0, 4), Some(Pickup(Move(5,2)))),
-        2 ->(elevator2.ref, Move(3, 0), None),
-        3 ->(elevator3.ref, Move(2, 3), Some(Pickup(Move(3,5)))))
+    //Then
+    underlyingActor.orderQueue shouldBe(Queue(Pickup(Move(1,3))))
+  }
 
-      val controlSystem = system.actorOf(Props(new ControlSystemActor(elevators, simulationActor.ref)))
+  "ControlSystemActor" should "enqueue pickup order" in {
+    //Given
+    val controlSystem = TestActorRef(new ControlSystemActor(2, orderQueue = Queue(Pickup(Move(1,3)))))
+    val underlyingActor = controlSystem.underlyingActor
 
-      //When
-      controlSystem ! Pickup(Move(6,0))
+    //When
+    controlSystem ! Pickup(Move(6,4))
 
-      //Then
-      elevator2.expectMsg(Pickup(Move(6,0)))
-    }
+    //Then
+    underlyingActor.orderQueue shouldBe(Queue(Pickup(Move(1,3)), Pickup(Move(6,4))))
+  }
 
-    "enqueue a pickup order when nor free neither un-scheduled elevator" in {
-      //Given
-      val elevator1 = TestProbe()
-      val elevator2 = TestProbe()
-      val elevator3 = TestProbe()
-      val simulationActor = TestProbe()
+  "ControlSystemActor" should "raise error when order queue is full" in {
+    //Given
+    val controlSystem = TestActorRef(new ControlSystemActor(2, orderQueue = Queue(Pickup(Move(1,3))), maxQueueSize = 1))
+    val pickup: Pickup = Pickup(Move(6, 4))
 
-      val elevators = Map(
-        1 -> (elevator1.ref, Move(0, 4), Some(Pickup(Move(5,2)))),
-        2 ->(elevator2.ref, Move(3, 0), Some(Pickup(Move(0,2)))),
-        3 ->(elevator3.ref, Move(2, 3), Some(Pickup(Move(3,5)))))
-
-      val controlSystem = system.actorOf(Props(new ControlSystemActor(elevators, simulationActor.ref, Queue(Pickup(Move(5,6))))))
-
-      //When
-      controlSystem ! Pickup(Move(0,1))
-
-      //Then
-      controlSystem ! GetQueueStatus
-      simulationActor.expectMsgAllOf(Queue(Pickup(Move(5,6)), Pickup(Move(0,1))))
-    }
-
-    "dequeue a pickup order when an elevator has unscheduled an order" in {
-      //Given
-      val elevator1 = TestProbe()
-      val elevator2 = TestProbe()
-      val elevator3 = TestProbe()
-      val simulationActor = TestProbe()
-
-      val elevators = Map(
-        1 -> (elevator1.ref, Move(0, 4), Some(Pickup(Move(5,2)))),
-        2 ->(elevator2.ref, Move(3, 0), Some(Pickup(Move(0,2)))),
-        3 ->(elevator3.ref, Move(2, 3), Some(Pickup(Move(3,5)))))
-
-      val controlSystem = system.actorOf(Props(new ControlSystemActor(elevators, simulationActor.ref,
-        Queue(Pickup(Move(5,6)), Pickup(Move(3,4))))))
-
-      //When
-      controlSystem ! UpdateStatus(1, Move(0, 4), None)
-
-      //Then
-      elevator1.expectMsg(Pickup(Move(5,6)))
-
-      controlSystem ! GetQueueStatus
-      simulationActor.expectMsgAllOf(ElevatorsStatuses(Map(1 -> (Move(0,4),None), 2 -> (Move(3,0),Some(Pickup(Move(0,2)))), 3 -> (Move(2,3),Some(Pickup(Move(3,5)))))),
-        Queue(Pickup(Move(3,4))))
-    }
-
-    "write error message and reject a pickup order when queue is full" in {
-      //Given
-      val elevator1 = TestProbe()
-      val elevator2 = TestProbe()
-      val elevator3 = TestProbe()
-      val simulationActor = TestProbe()
-
-      val elevators = Map(
-        1 -> (elevator1.ref, Move(0, 4), Some(Pickup(Move(5,2)))),
-        2 ->(elevator2.ref, Move(3, 0), Some(Pickup(Move(0,2)))),
-        3 ->(elevator3.ref, Move(2, 3), Some(Pickup(Move(3,5)))))
-
-      val controlSystem = system.actorOf(Props(new ControlSystemActor(elevators, simulationActor.ref,
-        Queue(Pickup(Move(5,6))), maxQueueSize = 1)))
-
-      //Then
-      EventFilter.error(message = s"Cannot enqueue order Pickup(Move(1,7)) because the queue is full", occurrences = 1) intercept {
-        controlSystem ! Pickup(Move(1,7))
-      }
-    }
-
-    "send ExecuteSimulation command to all elevators" in {
-      //Given
-      val elevator1 = TestProbe()
-      val elevator2 = TestProbe()
-      val elevator3 = TestProbe()
-      val simulationActor = TestProbe()
-
-      val elevators = Map(
-        1 -> (elevator1.ref, Move(0, 4), Some(Pickup(Move(5,2)))),
-        2 ->(elevator2.ref, Move(3, 0), Some(Pickup(Move(0,2)))),
-        3 ->(elevator3.ref, Move(2, 3), Some(Pickup(Move(3,5)))))
-
-      val controlSystem = system.actorOf(Props(new ControlSystemActor(elevators, simulationActor.ref)))
-
-      //When
-      controlSystem ! StartSimulation
-
-      //Then
-      elevator1.expectMsg(StartSimulation)
-      elevator2.expectMsg(StartSimulation)
-      elevator3.expectMsg(StartSimulation)
+    //Then
+    EventFilter.error(message = s"Cannot enqueue order $pickup because the queue is full", occurrences = 1) intercept {
+      controlSystem ! pickup
     }
   }
 }

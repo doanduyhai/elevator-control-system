@@ -2,61 +2,16 @@ package com.doanduyhai.elevator.actors
 
 import java.io.PrintStream
 
-import akka.actor.{ActorRef, Actor, ActorLogging}
 import scala.collection.immutable.{Queue, ListMap}
-import scala.concurrent.duration._
-import scala.concurrent.ExecutionContext.Implicits.global
 
+trait StatusPrinter {
 
-class SimulationActor(val root: ActorRef,
-                      val controlSystem: ActorRef,
-                      val simulationTimeStep: FiniteDuration = 1.second,
-                      private val printStream: PrintStream = System.out)
-  extends Actor with ActorLogging {
-
-  var elevatorsStatusInitialized = false
-  var elevatorsStatus:Map[Int, (ElevatorStatus, Option[Pickup])] = Map()
   val FLOOR_PATTERN = " _ "
 
-  def receive: Receive = {
-    case pickup @ Pickup(_) =>
-      printPickup(pickup)
-      controlSystem ! pickup
-    case ElevatorsStatuses(map) =>
-//      log.info(s"___ Receiving map $map")
-      elevatorsStatus = map
-      elevatorsStatusInitialized = true
-      printElevatorsStatus
-      sender ! ElevatorsStatusesAck
-    case StartSimulation =>
-      startSimulation
-    case RunSimulation =>
-      scheduleRunSimulation
-    case OrderQueue(queue) =>
-      printOrderQueue(queue)
-      sender ! OrderQueueAck
-    case unknown @ _ => log.error(s"SimulationActor receiving unknown message $unknown")
-  }
+  def printStream:PrintStream
 
-  def startSimulation: Any = {
-    controlSystem ! StartSimulation
-    scheduleRunSimulation
-  }
-
-  def hasActiveElevator = elevatorsStatus.
-    filter{case(_,(status,scheduledOrder)) => (status.isMoving || scheduledOrder.isDefined)}.
-    size > 0
-
-
-  def scheduleRunSimulation = {
-    if (hasActiveElevator || !elevatorsStatusInitialized) {
-      context.system.scheduler.scheduleOnce(simulationTimeStep, self, RunSimulation)
-    }
-    else {
-      log.info("SIMULATION FINISHED")
-      root ! SimulationFinished
-    }
-
+  def printDequeueOperation(elevatorId:Int, move: Move): Unit = {
+    printStream.println(s"\n    Send queued pickup order: $move to elevator $elevatorId\n")
   }
 
   def printOrderQueue(queue: Queue[Pickup]): Unit = {
@@ -67,7 +22,7 @@ class SimulationActor(val root: ActorRef,
     printStream.println(s"\n    Order received: $pickup\n")
   }
 
-  def printElevatorsStatus: Unit = {
+  def printElevatorsStatus(elevatorsStatus:Map[Int, (ElevatorStatus, Option[Pickup])]): Unit = {
 
     def formatDisplay(line: (Int, ElevatorStatus, Option[Pickup])): String = {
 

@@ -38,12 +38,13 @@ class ElevatorActor(val elevatorId: Int, controlSystem: => ActorRef, private var
                     val movingSpeed: FiniteDuration = 10.millisecond, private var scheduledOrder: Option[Pickup]=None)
   extends Actor with ActorLogging {
 
-  var scheduledNextMove = false
+  var simulationStarted = false
+  var simulationOngoing = false
 
   def receive: Receive = {
 
     case p @ Pickup(pickup) => {
-      sendStatusToControlSystem
+      if(!simulationStarted) sendStatusToControlSystem
       elevatorStatus match {
         case AtFloor(currentFloor) => {
           if (currentFloor != pickup.currentFloor) {
@@ -53,7 +54,7 @@ class ElevatorActor(val elevatorId: Int, controlSystem: => ActorRef, private var
             this.elevatorStatus = Move(pickup.currentFloor, pickup.targetFloor)
           }
           sendStatusToControlSystem
-          if(!scheduledNextMove) scheduleNextMove(this.elevatorStatus.nextStep)
+          if(!simulationOngoing) scheduleNextMove(this.elevatorStatus.nextStep)
         }
         case currentMove @ Move(_,_) => scheduledOrder match {
           case Some(scheduledPickup) =>
@@ -62,46 +63,46 @@ class ElevatorActor(val elevatorId: Int, controlSystem: => ActorRef, private var
             log.info(s"No pending order, save the pickup order for later")
             this.scheduledOrder = Some(p)
             sendStatusToControlSystem
-            if(!scheduledNextMove) scheduleNextMove(currentMove.nextStep)
+            if(!simulationOngoing) scheduleNextMove(currentMove.nextStep)
         }
       }
     }
 
     case enRoute @ EnRoute(state) => {
       this.elevatorStatus = state
+      sendStatusToControlSystem
       state match {
         case Move(_,_) =>
-          sendStatusToControlSystem
           scheduleNextMove(this.elevatorStatus.nextStep)
-        case AtFloor(currentFloor) => computeNextStepFromAtFloor(currentFloor,
-          s"Elevator $elevatorId has reached destination floor : $currentFloor, state = $state")
+        case AtFloor(currentFloor) =>
+          computeNextStepFromAtFloor(currentFloor, s"Elevator $elevatorId has reached destination floor : $currentFloor, state = $state")
       }
     }
 
-    case StartSimulation => this.elevatorStatus match {
-      case Move(_,_) =>
-        sendStatusToControlSystem
-        scheduleNextMove(this.elevatorStatus.nextStep)
-      case AtFloor(currentFloor)  => computeNextStepFromAtFloor(currentFloor,"No order to execute")
+    case StartSimulation => {
+      this.simulationStarted = true
+      sendStatusToControlSystem
+      this.elevatorStatus match {
+        case Move(_,_) =>
+          scheduleNextMove(this.elevatorStatus.nextStep)
+        case AtFloor(currentFloor)  => computeNextStepFromAtFloor(currentFloor, "No order to execute")
+      }
     }
-
     case unknown @ _ => log.error(s"ElevatorActor receiving unknown message $unknown")
   }
 
   def computeNextStepFromAtFloor(currentFloor: Int, logMsg:String): Unit = scheduledOrder match {
     case Some(Pickup(scheduledPickup)) => {
       if (currentFloor != scheduledPickup.currentFloor) {
-        sendStatusToControlSystem
         scheduleNextMove(Move(currentFloor, scheduledPickup.currentFloor))
       } else {
-        sendStatusToControlSystem
         scheduleNextMove(scheduledPickup)
         this.scheduledOrder = None
       }
     }
     case None =>
+      this.simulationOngoing = false
       log.info(logMsg)
-      sendStatusToControlSystem
   }
 
 
@@ -111,7 +112,7 @@ class ElevatorActor(val elevatorId: Int, controlSystem: => ActorRef, private var
   }
 
   def scheduleNextMove(nextStep: ElevatorStatus): Unit = {
-    this.scheduledNextMove = true
+    this.simulationOngoing = true
     log.debug(s"**** Schedule Next Move EnRoute($nextStep), [${Thread.currentThread().getId}]")
     context.system.scheduler.scheduleOnce(movingSpeed, self, EnRoute(nextStep))
   }

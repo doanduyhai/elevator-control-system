@@ -2,7 +2,7 @@ package com.doanduyhai.elevator
 
 import java.io.File
 
-trait ExpectedOutputParser {
+trait FileContentReader {
 
   def readContentFromFile(filename: String):String =  {
     val classLoader = getClass().getClassLoader()
