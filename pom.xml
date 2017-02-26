@@ -18,6 +18,7 @@
 
         <!--PLUGIN-->
         <plugin.scala.version>2.15.2</plugin.scala.version>
+        <plugin.scalatest.version>1.0</plugin.scalatest.version>
     </properties>
 
     <dependencies>
@@ -89,6 +90,24 @@
                     </execution>
                 </executions>
             </plugin>
+
+            <plugin>
+                <groupId>org.scalatest</groupId>
+                <artifactId>scalatest-maven-plugin</artifactId>
+                <version>${plugin.scalatest.version}</version>
+                <configuration>
+                    <parallel>false</parallel>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>test</id>
+                        <goals>
+                            <goal>test</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
         </plugins>
     </build>
 </project>
