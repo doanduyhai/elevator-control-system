@@ -126,6 +126,37 @@ class ControlSystemActorTest extends TestKit(ActorSystem("ControlSystemActorSyst
     underlyingActor.orderQueue shouldBe(Queue(Pickup(Move(1,3))))
   }
 
+  "ControlSystemActor" should "dispatch pickup order to an available elevator" in {
+    //Given
+    val elevator1 = TestProbe()
+    val controlSystem = TestActorRef(new ControlSystemActor(1))
+    val underlyingActor = controlSystem.underlyingActor
+    elevator1.send(controlSystem, UpdateStatus(1, AtFloor(0), None))
+
+    //When
+    controlSystem ! Pickup(Move(6,4))
+
+    //Then
+    elevator1.expectMsg(Pickup(Move(6,4)))
+    underlyingActor.orderQueue shouldBe(Queue.empty[Pickup])
+    underlyingActor.elevatorsStatus shouldBe(Map(1 -> (Move(6,4), None)))
+  }
+
+  "ControlSystemActor" should "enqueue pickup order because no available elevator" in {
+    //Given
+    val elevator1 = TestProbe()
+    val controlSystem = TestActorRef(new ControlSystemActor(1))
+    val underlyingActor = controlSystem.underlyingActor
+    elevator1.send(controlSystem, UpdateStatus(1, Move(0,1), Some(Pickup(Move(1,4)))))
+
+    //When
+    controlSystem ! Pickup(Move(6,4))
+
+    //Then
+    underlyingActor.orderQueue shouldBe(Queue(Pickup(Move(6,4))))
+    underlyingActor.elevatorsStatus shouldBe(Map(1 -> (Move(0,1), Some(Pickup(Move(1,4))))))
+  }
+
   "ControlSystemActor" should "enqueue pickup order" in {
     //Given
     val controlSystem = TestActorRef(new ControlSystemActor(2, orderQueue = Queue(Pickup(Move(1,3)))))

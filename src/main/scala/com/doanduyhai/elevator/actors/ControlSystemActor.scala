@@ -45,23 +45,30 @@ class ControlSystemActor(val expectedElevatorCount: Int,
     }
 
     case pickupOrder @ Pickup(_) => {
-      printPickup(pickupOrder)
-      availableElevator match {
-        case Some(freeElevator) =>
-          elevatorById(freeElevator) ! pickupOrder
-          proactivelyUpdateElevatorStatus(freeElevator, pickupOrder)
-        case None =>
-          if(this.orderQueue.size < maxQueueSize) {
-            this.orderQueue = this.orderQueue.enqueue(pickupOrder)
-          } else {
-            log.error(s"Cannot enqueue order $pickupOrder because the queue is full")
-          }
+      if(elevatorsStatus.size >= expectedElevatorCount) {
+        printPickup(pickupOrder)
+        availableElevator match {
+          case Some(freeElevator) =>
+            elevatorById(freeElevator) ! pickupOrder
+            proactivelyUpdateElevatorStatus(freeElevator, pickupOrder)
+          case None => enqueueAnOrder(pickupOrder)
+        }
+      } else {
+        enqueueAnOrder(pickupOrder)
       }
     }
 
     case unknown @ _ => log.error(s"ControlSystemActor receiving unknown message $unknown")
   }
 
+
+  def enqueueAnOrder(pickupOrder: Pickup): Unit = {
+    if (this.orderQueue.size < maxQueueSize) {
+      this.orderQueue = this.orderQueue.enqueue(pickupOrder)
+    } else {
+      log.error(s"Cannot enqueue order $pickupOrder because the queue is full")
+    }
+  }
 
   def dequeueAnOrder(freeElevator: Int): Unit = {
     val (pickup, tail) = this.orderQueue.dequeue
