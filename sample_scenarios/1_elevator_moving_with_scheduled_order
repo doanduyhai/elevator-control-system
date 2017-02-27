@@ -1,6 +1,6 @@
 timeStep: 1s
 1[1->3]:Move(4,0)
 OrderQueue: Move(5,8)
-MaxOrderQueuSize: 5
+MaxOrderQueueSize: 5
 Pickup(0,4): 2s
 Pickup(6,4): 5s

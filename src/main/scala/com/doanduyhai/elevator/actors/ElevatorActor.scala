@@ -34,7 +34,7 @@ case class AtFloor(floor: Int) extends ElevatorStatus {
 
 private case class EnRoute(status: ElevatorStatus)
 
-class ElevatorActor(val elevatorId: Int, controlSystem: => ActorRef, private var elevatorStatus: ElevatorStatus,
+class ElevatorActor(val elevatorId: Int, controlSystem: ActorRef, private var elevatorStatus: ElevatorStatus,
                     val movingSpeed: FiniteDuration = 10.millisecond, private var scheduledOrder: Option[Pickup]=None)
   extends Actor with ActorLogging {
 

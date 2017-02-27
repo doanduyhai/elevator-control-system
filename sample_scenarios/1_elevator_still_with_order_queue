@@ -1,0 +1,4 @@
+timeStep: 1s
+1: AtFloor(5)
+OrderQueue: Move(5,8), Move(8,3), Move(3,0)
+MaxOrderQueueSize: 10
