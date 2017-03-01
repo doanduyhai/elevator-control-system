@@ -217,7 +217,7 @@ class IntegrationTest extends TestKit(ActorSystem("SimulationActorSystem",
         |--------------------------------------------------""".stripMargin)
   }
 
-  "ControlSystem" should "simulate  2 elevators moving with scheduled orders and enqueue then dequeue an order" in {
+  "ControlSystem" should "simulate 2 elevators moving with scheduled orders and enqueue then dequeue an order" in {
     //Given
     val timeStep = 20.millisecond
     val baos = new ByteArrayOutputStream()
@@ -264,6 +264,33 @@ class IntegrationTest extends TestKit(ActorSystem("SimulationActorSystem",
         |1[    ]: |0|
         |2[    ]:  _  _  _ |3|
         |--------------------------------------------------""".stripMargin)
+  }
+
+  "ControlSystem" should "simulate 2 elevators moving and choose the shortest path elevator for pickup" in {
+    //Given
+    val timeStep = 20.millisecond
+    val baos = new ByteArrayOutputStream()
+
+    val controlSystemActor = system.actorOf(Props(new ControlSystemActor(2, printStream = new PrintStream(baos))))
+
+    val elevator1 = system.actorOf(Props(new ElevatorActor(1, controlSystemActor, Move(0,7), timeStep, None)))
+    val elevator2 = system.actorOf(Props(new ElevatorActor(2, controlSystemActor, Move(10,5), timeStep, None)))
+
+
+    //When
+    elevator1 ! StartSimulation
+    elevator2 ! StartSimulation
+    Thread.sleep(20)
+    controlSystemActor ! Pickup(Move(2, 0))
+
+    //Then
+    Thread.sleep(1000)
+    val display = new String(baos.toByteArray())
+
+    display should include("Order received: Pickup(Move(2,0))")
+    display should include("2[2->0]:  _  _  _  _  _ |5|")
+
+
   }
 
 }

@@ -8,6 +8,8 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 sealed trait ElevatorStatus {
   def nextStep: ElevatorStatus
+  def currentFloor: Int
+  def targetFloor: Int
   def isMoving: Boolean
 }
 case class Move(currentFloor:Int, targetFloor:Int) extends ElevatorStatus {
@@ -29,6 +31,8 @@ case class Move(currentFloor:Int, targetFloor:Int) extends ElevatorStatus {
 
 case class AtFloor(floor: Int) extends ElevatorStatus {
   override def nextStep: ElevatorStatus = AtFloor(floor)
+  override def currentFloor = floor
+  override def targetFloor = floor
   override def isMoving = false
 }
 
@@ -81,6 +85,7 @@ class ElevatorActor(val elevatorId: Int, controlSystem: ActorRef, private var el
 
     case StartSimulation => {
       this.simulationStarted = true
+      //The first status sent to control system acts as "registration" of this elevator to the control system
       sendStatusToControlSystem
       this.elevatorStatus match {
         case Move(_,_) =>

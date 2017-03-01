@@ -68,7 +68,7 @@ class ControlSystemActorTest extends TestKit(ActorSystem("ControlSystemActorSyst
 
     //Then
     elevator2.expectMsg(Pickup(Move(1,3)))
-    underlyingActor.elevatorsStatus(2) shouldBe((Move(1,3), None))
+    underlyingActor.elevatorsStatus(2) shouldBe((Move(3,1), Some(Pickup(Move(1,3)))))
     val display = new String(baos.toByteArray())
 
     display should include(
@@ -139,7 +139,61 @@ class ControlSystemActorTest extends TestKit(ActorSystem("ControlSystemActorSyst
     //Then
     elevator1.expectMsg(Pickup(Move(6,4)))
     underlyingActor.orderQueue shouldBe(Queue.empty[Pickup])
-    underlyingActor.elevatorsStatus shouldBe(Map(1 -> (Move(6,4), None)))
+    underlyingActor.elevatorsStatus shouldBe(Map(1 -> (Move(0,6), Some(Pickup(Move(6,4))))))
+  }
+
+
+  "ControlSystemActor" should "dispatch pickup order to the nearest idle elevators" in {
+    //Given
+    val elevator1 = TestProbe()
+    val elevator2 = TestProbe()
+    val controlSystem = TestActorRef(new ControlSystemActor(1))
+    val underlyingActor = controlSystem.underlyingActor
+    elevator1.send(controlSystem, UpdateStatus(1, AtFloor(1), None))
+    elevator2.send(controlSystem, UpdateStatus(2, AtFloor(6), None))
+
+    //When
+    controlSystem ! Pickup(Move(4,1))
+
+    //Then
+    elevator2.expectMsg(Pickup(Move(4,1)))
+    underlyingActor.elevatorsStatus shouldBe(Map(1 -> (AtFloor(1), None), 2 -> (Move(6,4), Some(Pickup(Move(4,1))))))
+  }
+
+
+  "ControlSystemActor" should "dispatch pickup order to the nearest moving elevators case 1" in {
+    //Given
+    val elevator1 = TestProbe()
+    val elevator2 = TestProbe()
+    val controlSystem = TestActorRef(new ControlSystemActor(1))
+    val underlyingActor = controlSystem.underlyingActor
+    elevator1.send(controlSystem, UpdateStatus(1, Move(1,3), None))
+    elevator2.send(controlSystem, UpdateStatus(2, Move(1,4), None))
+
+    //When
+    controlSystem ! Pickup(Move(4,1))
+
+    //Then
+    elevator2.expectMsg(Pickup(Move(4,1)))
+    underlyingActor.elevatorsStatus shouldBe(Map(1 -> (Move(1,3), None), 2 -> (Move(1,4), Some(Pickup(Move(4,1))))))
+  }
+
+
+  "ControlSystemActor" should "dispatch pickup order to the nearest moving elevators case 2" in {
+    //Given
+    val elevator1 = TestProbe()
+    val elevator2 = TestProbe()
+    val controlSystem = TestActorRef(new ControlSystemActor(1))
+    val underlyingActor = controlSystem.underlyingActor
+    elevator1.send(controlSystem, UpdateStatus(1, Move(1,5), None)) //Current path = 4, Next path (|4-5| + 1) = 2, Total = 6
+    elevator2.send(controlSystem, UpdateStatus(2, Move(9,4), None)) //Current path = 5, Next path |4-4| = 0, Total = 5
+
+    //When
+    controlSystem ! Pickup(Move(4,1))
+
+    //Then
+    elevator2.expectMsg(Pickup(Move(4,1)))
+    underlyingActor.elevatorsStatus shouldBe(Map(1 -> (Move(1,5), None), 2 -> (Move(9,4), Some(Pickup(Move(4,1))))))
   }
 
   "ControlSystemActor" should "enqueue pickup order because no available elevator" in {
