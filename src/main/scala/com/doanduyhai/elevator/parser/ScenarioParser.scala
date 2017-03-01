@@ -32,7 +32,7 @@ object ScenarioParser extends RegexParsers {
   val MOVE_ELEVATOR_PATTERN = (ELEVATOR + """\s*:\s*""" + MOVE).r
 
   val MOVE_PATTERN = ("""\s*Move\(([0-9]+),([0-9]+)\)\s*""").r
-  val ORDER_QUEUE_PATTERN = ("""(?i)^\s*OrderQueue\s*:\s*((?:Move\([0-9]+,[0-9]+\)(?:,(?!$))?)*)\s*$""").r
+  val ORDER_QUEUE_PATTERN = ("""(?i)^\s*OrderQueue\s*:\s*((?:Move\([0-9]+,[0-9]+\)\s*(?:(?:,\s*)(?!$))?)*)\s*$""").r
   val MAX_ORDER_QUEUE_SIZE_PATTERN = ("""(?i)^\s*MaxOrderQueueSize\s*:\s*([0-9]+)\s*$""").r
 
   val PICKUP_ORDER_PATTERN = ("""(?i)^\s*Pickup\(([0-9]+),([0-9]+)\)\s*:\s*([0-9]+)(s|ms)\s*$""").r
@@ -111,8 +111,8 @@ class ScenarioParser extends RegexParsers {
   }
   }
 
-  def orderQueue: Parser[OrderQueue] = """\s*OrderQueue.+""".r ^^ { case x => x match {
-    case ORDER_QUEUE_PATTERN(moves) => OrderQueue(moves.split("""(?<=\)),""").map(move => parseMove(move)).toList)
+  def orderQueue: Parser[OrderQueue] = """\s*OrderQueue.+""".r ^^ { case x => Option(x).map(_.trim) match {
+    case Some(ORDER_QUEUE_PATTERN(moves)) => OrderQueue(moves.split("""(?<=\)),""").map(move => parseMove(move)).toList)
     case _ => throw new IllegalArgumentException(s"OrderQueue syntax should obey to pattern $ORDER_QUEUE_PATTERN")
   }
   }
@@ -132,7 +132,7 @@ class ScenarioParser extends RegexParsers {
   }
   }
 
-  def movingElevator: Parser[ElevatorInput] = """\s*[0-9].+Move.+""".r ^^ { case x => x match {
+  def movingElevator: Parser[ElevatorInput] = """\s*[0-9].*:.*Move.*""".r ^^ { case x => x match {
     case MOVE_ELEVATOR_PATTERN(id, option, from, to) => Option(option) match {
       case Some(scheduledOrder) => ElevatorInput(id.toInt, Move(from.toInt, to.toInt), parseScheduledOrder(scheduledOrder))
       case None => ElevatorInput(id.toInt, Move(from.toInt, to.toInt), None)

@@ -31,7 +31,7 @@ class ScenarioParserTest extends FlatSpec with Matchers with FileContentReader {
 
   "Parser" should "parse moving elevator with scheduled order" in {
     val parser = new ScenarioParser
-    val parsed = parser.parse(parser.queries, "1[1->3]:Move(4,0)")
+    val parsed = parser.parse(parser.queries, "1[1->3]: Move(4,0)")
 
     parsed should matchPattern {
       case parser.Success(List(ElevatorInput(1, Move(4,0), Some(Pickup(Move(1,3))))), _) =>
@@ -67,7 +67,7 @@ class ScenarioParserTest extends FlatSpec with Matchers with FileContentReader {
 
   "Parser" should "parse order queue" in {
     val parser = new ScenarioParser
-    val parsed = parser.parse(parser.queries, "OrderQueue: Move(5,8),Move(1,3),Move(2,3)")
+    val parsed = parser.parse(parser.queries, "OrderQueue: Move(5,8), Move(1,3),Move(2,3)")
 
     parsed should matchPattern {
       case parser.Success(List(OrderQueue(List(Move(5,8), Move(1,3), Move(2,3)))), _) =>
