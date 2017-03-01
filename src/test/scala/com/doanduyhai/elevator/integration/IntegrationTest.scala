@@ -140,7 +140,24 @@ class IntegrationTest extends TestKit(ActorSystem("SimulationActorSystem",
     Thread.sleep(1000)
     val display = new String(baos.toByteArray())
 
-    display should include(readContentFromFile("integration/simulate_simple_scenario_with_1_elevator_moving_and_receiving_a_pickup_order"))
+    display should include("Order received: Pickup(Move(4,2))")
+    display should include(
+      """
+        |--------------------------------------------------
+        |1[4->2]:  _  _  _ |3|
+        |--------------------------------------------------""".stripMargin)
+
+    display should include(
+      """
+        |--------------------------------------------------
+        |1[4->2]:  _  _  _  _ |4|
+        |--------------------------------------------------""".stripMargin)
+
+    display should include(
+      """
+        |--------------------------------------------------
+        |1[    ]:  _  _ |2|
+        |--------------------------------------------------""".stripMargin)
   }
 
   "ControlSystem" should "simulate simple scenario with 1 elevator still with no scheduled order and dequeue an order" in {
